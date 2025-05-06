@@ -1,6 +1,7 @@
 # SSTI Vulnerability Scanner
 
-A Python-based tool for detecting Server-Side Template Injection (SSTI) vulnerabilities in web applications.
+A tool for detecting Server-Side Template Injection vulnerabilities in web applications.
+
 
 ## Features
 
@@ -18,17 +19,26 @@ A Python-based tool for detecting Server-Side Template Injection (SSTI) vulnerab
 - Color-coded console output
 - Result export to file
 
-## Installation
-Clone the repository
+To get started, clone the repository to your local machine:
+
+```bash
 git clone https://github.com/aryahmpillai/SstiScanner.git
+
 cd SstiScanner
-Create a virtual environment (optional but recommended)
+
+Setup the Virtual Environment
 python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
-Install dependencies
+
+On macOS/Linux:
+source venv/bin/activate
+
+On Windows:
+venv\Scripts\activate
+
+Install Dependencies.
 pip install -r requirements.txt
 
- Usage
-For Single URL :  python main.py http://example.com/page
+Usage 💻
+For Single URL 🌐  python main.py http://example.com/page
 
-
+For Multiple URLs  📄 python main.py -f urls.txt

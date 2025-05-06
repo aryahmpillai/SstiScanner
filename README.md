@@ -19,5 +19,16 @@ A Python-based tool for detecting Server-Side Template Injection (SSTI) vulnerab
 - Result export to file
 
 ## Installation
+Clone the repository
+git clone https://github.com/aryahmpillai/SstiScanner.git
+cd SstiScanner
+Create a virtual environment (optional but recommended)
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+Install dependencies
+pip install -r requirements.txt
 
-1. Clone this repository:
+ Usage
+For Single URL :  python main.py http://example.com/page
+
+

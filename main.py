@@ -26,123 +26,106 @@ def parse_arguments():
         description='SSTI Vulnerability Scanner - Detect template injection vulnerabilities',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    
-    # Allow either a single URL or a file with URLs
+
+    # Single URL or file input
     parser.add_argument('url', nargs='?', help='Target URL to scan for SSTI vulnerabilities')
-    parser.add_argument('-f', '--file', dest='url_file', help="Path to a file containing target URLs (one per line)")
-    
-    # Request configuration
-    parser.add_argument('-m', '--method', choices=['GET', 'POST'], default='GET',
-                       help='HTTP method to use for testing')
-    parser.add_argument('-d', '--data', help='Data for POST requests (URL-encoded format)')
-    parser.add_argument('-H', '--headers', action='append', default=[],
-                       help='Custom HTTP headers (format: "Header: Value")')
-    parser.add_argument('-c', '--cookie', help='Cookies to include with requests')
-    
-    # Scan configuration
-    parser.add_argument('-p', '--parameter', action='append', dest='parameters',
-                       help='Specific parameters to test (default: test all)')
-    parser.add_argument('-t', '--template-engines', choices=['all', 'jinja2', 'twig', 'pebble', 'velocity', 'freemarker', 'mako', 'erb'],
-                       default='all', help='Template engines to test')
-    parser.add_argument('--timeout', type=int, default=10,
-                       help='Request timeout in seconds')
-    parser.add_argument('--delay', type=float, default=0.1,
-                       help='Delay between requests in seconds')
-    parser.add_argument('--retries', type=int, default=3,
-                       help='Number of retry attempts for failed requests')
-    
-    # Output configuration
-    parser.add_argument('-v', '--verbose', action='store_true',
-                       help='Enable verbose output')
-    parser.add_argument('-o', '--output', help='Save results to file')
-    parser.add_argument('--no-color', action='store_true',
-                       help='Disable colored output')
-    
+    parser.add_argument('-f', '--file', dest='url_file', help="File containing target URLs (one per line)")
+
+    # Request config
+    parser.add_argument('-m', '--method', choices=['GET', 'POST'], default='GET', help='HTTP method')
+    parser.add_argument('-d', '--data', help='POST data (URL-encoded)')
+    parser.add_argument('-H', '--headers', action='append', default=[], help='Custom headers ("Header: Value")')
+    parser.add_argument('-c', '--cookie', help='Cookies for request')
+
+    # Scan options
+    parser.add_argument('-p', '--parameter', action='append', dest='parameters', help='Parameters to test')
+    parser.add_argument('-t', '--template-engines',
+                        choices=['all', 'jinja2', 'twig', 'pebble', 'velocity', 'freemarker', 'mako', 'erb'],
+                        default='all', help='Template engines to test')
+    parser.add_argument('--timeout', type=int, default=10, help='Request timeout')
+    parser.add_argument('--delay', type=float, default=0.1, help='Delay between requests')
+    parser.add_argument('--retries', type=int, default=3, help='Retry count')
+
+    # Output options
+    parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose logging')
+    parser.add_argument('-o', '--output', help='Save results to a file')
+    parser.add_argument('--no-color', action='store_true', help='Disable colored output')
+
     return parser.parse_args()
 
 def process_headers(header_list):
-    """Process header list into a dictionary."""
+    """Convert list of headers to dict."""
     headers = {}
     for header in header_list:
         if ':' in header:
             name, value = header.split(':', 1)
             headers[name.strip()] = value.strip()
         else:
-            logging.warning(f"Ignoring invalid header format: {header}")
+            logging.warning(f"Ignoring invalid header: {header}")
     return headers
 
 def load_urls_from_file(path):
-    """Load URLs from a file."""
+    """Read URLs from file."""
     if not os.path.isfile(path):
         logging.error(f"File not found: {path}")
-        exit(1)
+        sys.exit(1)
     with open(path, 'r') as f:
         return [line.strip() for line in f if line.strip()]
 
-def scan_url(url, scanner, reporter):
-    """Perform the scan for a single URL."""
-    logging.info(f"Scanning URL: {url}")
-    try:
-        results = scanner.scan()
-        reporter.print_results(results)
-        
-        if results.get('vulnerabilities'):
-            logging.error(f"[!] Vulnerabilities found for {url}")
-        
-        return 0 if not results.get('vulnerabilities') else 1
-    except Exception as e:
-        logging.error(f"Error scanning {url}: {e}")
-        return 1
-
 def main():
-    """Main entry point for the SSTI scanner."""
     args = parse_arguments()
     setup_logging(args.verbose)
-    
-    logging.info("Starting SSTI Vulnerability Scanner")
-    
-    # Process request configuration
+
+    logging.info("🚀 Starting SSTI Vulnerability Scanner")
+
+    # Prepare headers
     headers = process_headers(args.headers)
     if args.cookie:
         headers['Cookie'] = args.cookie
-    
-    # Initialize scanner with provided options
-    scanner = Scanner(
-        method=args.method,
-        data=args.data,
-        headers=headers,
-        parameters=args.parameters,
-        template_engines=args.template_engines,
-        timeout=args.timeout,
-        delay=args.delay,
-        retries=args.retries,
-        use_color=not args.no_color
-    )
-    
-    # Handle URLs
-    urls = []
+
+    # Get list of URLs to scan
     if args.url:
-        urls.append(args.url)
+        urls = [args.url]
     elif args.url_file:
         urls = load_urls_from_file(args.url_file)
     else:
-        logging.error("[!] Please provide a URL or a URL file.")
+        logging.error("❌ Please provide a URL or a URL file (-f).")
         return 1
-    
-    # Initialize reporter
+
+    # Reporter instance
     reporter = Reporter(use_color=not args.no_color)
-    
-    # Scan each URL
+    all_results = []
+
     status_code = 0
     for url in urls:
-        status_code |= scan_url(url, scanner, reporter)
-    
-    # Optionally save results to file
+        logging.info(f"🔍 Scanning: {url}")
+        scanner = Scanner(
+            url=url,
+            method=args.method,
+            data=args.data,
+            headers=headers,
+            parameters=args.parameters,
+            template_engines=args.template_engines,
+            timeout=args.timeout,
+            delay=args.delay,
+            retries=args.retries,
+            use_color=not args.no_color
+        )
+        try:
+            results = scanner.scan()
+            all_results.append(results)
+            reporter.print_results(results)
+            if results.get('vulnerabilities'):
+                logging.warning(f"⚠️ Vulnerabilities found for {url}")
+                status_code = 1
+        except Exception as e:
+            logging.error(f"💥 Error scanning {url}: {e}")
+            status_code = 1
+
     if args.output:
-        reporter.save_to_file(results, args.output)
-    
+        reporter.save_to_file(all_results, args.output)
+
     return status_code
 
 if __name__ == "__main__":
     sys.exit(main())
-

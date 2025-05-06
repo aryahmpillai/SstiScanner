@@ -7,6 +7,7 @@ A tool for detecting Server-Side Template Injection vulnerabilities in web appli
 import argparse
 import logging
 import sys
+import os
 from scanner import Scanner
 from reporter import Reporter
 
@@ -26,7 +27,9 @@ def parse_arguments():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     
-    parser.add_argument('url', help='Target URL to scan for SSTI vulnerabilities')
+    # Allow either a single URL or a file with URLs
+    parser.add_argument('url', nargs='?', help='Target URL to scan for SSTI vulnerabilities')
+    parser.add_argument('-f', '--file', dest='url_file', help="Path to a file containing target URLs (one per line)")
     
     # Request configuration
     parser.add_argument('-m', '--method', choices=['GET', 'POST'], default='GET',
@@ -68,13 +71,35 @@ def process_headers(header_list):
             logging.warning(f"Ignoring invalid header format: {header}")
     return headers
 
+def load_urls_from_file(path):
+    """Load URLs from a file."""
+    if not os.path.isfile(path):
+        logging.error(f"File not found: {path}")
+        exit(1)
+    with open(path, 'r') as f:
+        return [line.strip() for line in f if line.strip()]
+
+def scan_url(url, scanner, reporter):
+    """Perform the scan for a single URL."""
+    logging.info(f"Scanning URL: {url}")
+    try:
+        results = scanner.scan()
+        reporter.print_results(results)
+        
+        if results.get('vulnerabilities'):
+            logging.error(f"[!] Vulnerabilities found for {url}")
+        
+        return 0 if not results.get('vulnerabilities') else 1
+    except Exception as e:
+        logging.error(f"Error scanning {url}: {e}")
+        return 1
+
 def main():
     """Main entry point for the SSTI scanner."""
     args = parse_arguments()
     setup_logging(args.verbose)
     
     logging.info("Starting SSTI Vulnerability Scanner")
-    logging.debug(f"Target URL: {args.url}")
     
     # Process request configuration
     headers = process_headers(args.headers)
@@ -83,7 +108,6 @@ def main():
     
     # Initialize scanner with provided options
     scanner = Scanner(
-        url=args.url,
         method=args.method,
         data=args.data,
         headers=headers,
@@ -95,28 +119,30 @@ def main():
         use_color=not args.no_color
     )
     
-    # Run the scan
-    try:
-        results = scanner.scan()
-        
-        # Report results
-        reporter = Reporter(use_color=not args.no_color)
-        reporter.print_results(results)
-        
-        if args.output:
-            reporter.save_to_file(results, args.output)
-            
-        # Return non-zero if vulnerabilities found
-        return 0 if not results.get('vulnerabilities') else 1
-    
-    except KeyboardInterrupt:
-        logging.info("Scan interrupted by user")
-        return 130
-    except Exception as e:
-        logging.error(f"An error occurred: {str(e)}")
-        if args.verbose:
-            logging.exception("Exception details:")
+    # Handle URLs
+    urls = []
+    if args.url:
+        urls.append(args.url)
+    elif args.url_file:
+        urls = load_urls_from_file(args.url_file)
+    else:
+        logging.error("[!] Please provide a URL or a URL file.")
         return 1
+    
+    # Initialize reporter
+    reporter = Reporter(use_color=not args.no_color)
+    
+    # Scan each URL
+    status_code = 0
+    for url in urls:
+        status_code |= scan_url(url, scanner, reporter)
+    
+    # Optionally save results to file
+    if args.output:
+        reporter.save_to_file(results, args.output)
+    
+    return status_code
 
 if __name__ == "__main__":
     sys.exit(main())
+
